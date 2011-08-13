@@ -394,6 +394,9 @@ function filter-select() {
                     else
                         desc_disp="${desc_disp}${mark_idx_disp}"
                     fi
+                    if (( ${(m)#desc_disp} < COLUMNS - 1 )); then
+                        desc_disp="${(mr:$(( COLUMNS - 1 )):::: :)desc_disp}"
+                    fi
 
                     displays+="${desc_disp}"
 
@@ -409,7 +412,7 @@ function filter-select() {
                     fi
 
                     if (( is_marked )); then
-                        region_highlight+="${offset} $(( offset + ${#desc_disp} - ${#mark_idx_disp} + 1 )) ${hi_marked}"
+                        region_highlight+="${offset} $(( offset + ${#desc_disp} + 1 )) ${hi_marked}"
                     fi
 
                     if (( disp_num == cursor_line )); then
