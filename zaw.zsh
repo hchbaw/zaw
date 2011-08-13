@@ -140,6 +140,8 @@ function zaw() {
         esac
 
         "${action}" "${(@)selected}"
+    else
+        return $?
     fi
 }
 
