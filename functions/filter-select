@@ -389,8 +389,15 @@ function filter-select() {
                     fi
 
                     if (( ${(m)#desc_disp} + $#mark_idx_disp > COLUMNS - 1 )); then
-                        # strip long line
-                        desc_disp="${(mr:$(( COLUMNS - $#mark_idx_disp - 6 )):::::)desc_disp} ...${mark_idx_disp}"
+                        # truncate at some middle of the line
+                        desc_disp="$(
+                            local s="${desc_disp}${mark_idx_disp}"
+                            print -nP "%$((($COLUMNS - 1) / 2))>...>$s"
+                            print -nP "%$((($COLUMNS - 1) / 2))<<$s"
+                        )"
+                        if [[ -n "${mark_idx_disp}" ]]; then
+                            desc_disp="${desc_disp%${mark_idx_disp}}"
+                        fi
                     else
                         desc_disp="${desc_disp}${mark_idx_disp}"
                     fi
