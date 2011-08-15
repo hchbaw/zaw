@@ -501,6 +501,7 @@ function filter-select() {
 }
 
 function _filter-select-update-lines() {
+    [[ -z "$lines" ]] || return # XXX: ignore any LINES changes
     # XXX: this function override ${lines}
     #      that define as local in filter-select
     #      also use ${title}
