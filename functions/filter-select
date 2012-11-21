@@ -296,6 +296,18 @@ function filter-select() {
                 # empty, initial state
                 ;;
 
+            clear-screen)
+                local tmpline=$cursor_line
+                _filter-select-reset
+                if zstyle -t ':filter-select' truncate; then
+                    zstyle ':filter-select' truncate no
+                else
+                    zstyle ':filter-select' truncate yes
+                fi
+                last_buffer=
+                (( cursor_line = $tmpline ))
+                ;;
+
             *)
                 buffer_pre_zle="${BUFFER}"
 
@@ -389,12 +401,14 @@ function filter-select() {
                     fi
 
                     if (( ${(m)#desc_disp} + $#mark_idx_disp > COLUMNS - 1 )); then
-                        # truncate at some middle of the line
-                        desc_disp="$(
-                            local s="${desc_disp}${mark_idx_disp}"
-                            print -nP "%$((($COLUMNS - 1) / 2))>...>$s"
-                            print -nP "%$((($COLUMNS - 1) / 2))<<$s"
-                        )"
+                        if zstyle -t ':filter-select' truncate; then
+                            # truncate at some middle of the line
+                            desc_disp="$(
+                                local s="${desc_disp}${mark_idx_disp}"
+                                print -nP "%$((($COLUMNS - 1) / 2))>...>$s"
+                                print -nP "%$((($COLUMNS - 1) / 2))<<$s"
+                            )"
+                        fi
                         if [[ -n "${mark_idx_disp}" ]]; then
                             desc_disp="${desc_disp%${mark_idx_disp}}"
                         fi
@@ -677,6 +691,8 @@ function _filter-select-init-keybind() {
 
         bindkey -M filterselect '^[>' end-of-history
         bindkey -M filterselect '^[[4~' end-of-history
+
+        bindkey -M filterselect '^L' clear-screen
     fi
 }
 
