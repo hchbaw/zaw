@@ -72,6 +72,7 @@ function zaw-register-src() {
 
 
 function zaw() {
+    local -A orig_options; : ${(AA)orig_options::=$options}
     local action ret
     local -a reply candidates actions act_descriptions options selected cand_descriptions
     local -A cands_assoc

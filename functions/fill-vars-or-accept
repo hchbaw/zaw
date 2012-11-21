@@ -7,6 +7,7 @@ FILL_VARS_PATTERN='${:-[a-z_][a-z0-9_]#}'
 
 function fill-vars-or-accept() {
     # TODO: tab completion
+    local -A options; : ${(AA)options::=$orig_options}
 
     local REPLY
     local -a orig_region_highlight
@@ -17,6 +18,7 @@ function fill-vars-or-accept() {
 
     bindkey -N fillvars main
     bindkey -M fillvars '^i' go-to-next-var
+    bindkey -M fillvars '^x^i' fillvars-complete-word
 
     CURSOR=0
 
@@ -107,6 +109,19 @@ function go-to-next-var() {
 }
 
 zle -N go-to-next-var
+
+function fillvars-complete-word() {
+    autoload -Uz split-shell-arguments
+    local -a reply
+    local -i REPLY REPLY2
+    split-shell-arguments
+    ((REPLY & 1)) && ((REPLY--))
+    ((REPLY2 = ${#reply[REPLY]-} + 1))
+    RBUFFER="${RBUFFER#${reply[REPLY]}}"
+    zle complete-word
+}
+
+zle -N fillvars-complete-word
 
 function _get-current-var() {
     emulate -L zsh
