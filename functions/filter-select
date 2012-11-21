@@ -23,7 +23,8 @@
 # usage:
 #   filter-select [-t title] [-A assoc-array-name]
 #                 [-d array-of-description] [-D assoc-array-of-descrption]
-#                 [-n] [-r] [-m] [-e exit-zle-widget-name]... [--] [arg]...
+#                 [-n] [-r] [-m] [-e exit-zle-widget-name]
+#                 [-k keymap]... [--] [arg]...
 #   filter-select -i
 #
 #     -t title
@@ -55,6 +56,9 @@
 #       if keys bound to `exit-zle-widget-name` is pressed,
 #       filter-select exits and set it's name to $reply[1].
 #
+#     -k keymap
+#       initially selected keymap. (default `filterselect`)
+#
 #     args
 #       selection candidates.
 #
@@ -80,6 +84,11 @@
 #   ^[V, page down key: backward-word (page up)
 #   ^[<, home key:      beginning-of-history (select first item)
 #   ^[>, end key:       end-of-history (select last item)
+#   ^[^[:               select `filterselect-vicmd` keymap (see below)
+#
+# key binds in filterselect-vicmd which differs to the `vicmd`:
+#   i, a, /, ?:         select `filterselect` keymap
+#   ^G:                 send-break (retern 0)
 #
 # available zstyles:
 #   ':filter-select:highlight' selected
@@ -88,6 +97,7 @@
 #   ':filter-select' max-lines
 #   ':filter-select' case-insensitive
 #   ':filter-select' extended-search
+#   ':filter-select' keymap
 #
 #   example:
 #     zstyle ':filter-select:highlight' matched fg=yellow,standout
@@ -95,6 +105,7 @@
 #     zstyle ':filter-select' max-lines -10 # use $LINES - 10 for filter-select
 #     zstyle ':filter-select' case-insensitive yes # enable case-insensitive search
 #     zstyle ':filter-select' extended-search yes # enable extended search regardless of the case-insensitive style
+#     zstyle ':filter-select' keymap filterselect-vicmd # initially select `filterselect-vicmd` keymap
 #
 # extended-search:
 #     If this style set to be true value, the searching bahavior will be
@@ -122,7 +133,7 @@ function filter-select() {
     local cand lines selected cand_disp buffer_pre_zle last_buffer=''
     local opt pattern msg unused title='' exit_pattern nl=$'\n'
     local selected_index mark_idx_disp hi start end spec
-    local key bounds numeric
+    local key bounds numeric keymap
 
     local -a displays matched_desc_keys match mbegin mend outs exit_wigdets
     local -a init_region_highlight marked_lines
@@ -140,6 +151,7 @@ function filter-select() {
 
     integer max_lines
     zstyle -s ':filter-select' max-lines max_lines || max_lines=0
+    zstyle -s ':filter-select' keymap keymap || keymap=filterselect
 
     _filter-select-init-keybind
 
@@ -147,7 +159,7 @@ function filter-select() {
     descriptions=()
     exit_wigdets=(accept-line accept-search send-break)
 
-    while getopts 't:A:d:D:nrme:i' opt; do
+    while getopts 't:A:d:D:nrme:k:i' opt; do
         case "${opt}" in
             t)
                 title="${OPTARG}"
@@ -181,6 +193,9 @@ function filter-select() {
                 ;;
             e)
                 exit_wigdets+="${OPTARG}"
+                ;;
+            k)
+                keymap="${OPTARG}"
                 ;;
             i)
                 # do nothing. only keybinds are initialized
@@ -251,6 +266,8 @@ function filter-select() {
 
     exit_pattern="(${(j:|:)exit_wigdets})"
 
+    _filter-select-mode-update "$keymap"
+
     while [[ "${bounds}" != ${~exit_pattern} ]]; do
         case "${bounds}" in
             set-mark-command)
@@ -290,8 +307,21 @@ function filter-select() {
                 ;;
 
             self-insert|undefined-key)
-                LBUFFER="${LBUFFER}${key}"
-                _filter-select-reset
+                # do not modify LBUFFER while filterselect-vicmd active
+                if [[ "${keymap}" != filterselect-vicmd ]]; then
+                    LBUFFER="${LBUFFER}${key}"
+                    _filter-select-reset
+                fi
+                ;;
+
+            filterselect-vicmd-mode)
+                keymap="filterselect-vicmd"
+                _filter-select-mode-update "$keymap"
+                ;;
+
+            filterselect-mode)
+                keymap="filterselect"
+                _filter-select-mode-update "$keymap"
                 ;;
 
             '')
@@ -446,7 +476,7 @@ function filter-select() {
 
         fi
 
-        _filter-select-read-keys "filterselect" key bounds numeric
+        _filter-select-read-keys "${keymap}" key bounds numeric
 
         if [[ $? != 0 ]]; then
             break
@@ -673,6 +703,17 @@ function _filter-select-init-keybind() {
         bindkey -M filterselect '^[9' digit-argument
 
         bindkey -R -M filterselect "!"-"~" self-insert
+
+        bindkey -M filterselect '^[^[' filterselect-vicmd-mode
+
+        bindkey -N filterselect-vicmd vicmd
+
+        bindkey -M filterselect-vicmd 'i' filterselect-mode
+        bindkey -M filterselect-vicmd 'a' filterselect-mode
+        bindkey -M filterselect-vicmd '/' filterselect-mode
+        bindkey -M filterselect-vicmd '?' filterselect-mode
+        bindkey -M filterselect-vicmd '^[^G' send-break
+        bindkey -M filterselect-vicmd '^G' send-break
     fi
 }
 
@@ -713,6 +754,19 @@ function _filter-select-digit-argument-p() {
     [[ "$1" == vi-digit-or-beginning-of-line ]] && \
         [[ -z "$BUFFER" ]] && return 0
     return -1
+}
+
+function _filter-select-mode-update() {
+    zmodload zsh/terminfo 2>/dev/null && {
+        echoti sc
+        echoti hpa 0
+        if [[ "$1" == filterselect-vicmd ]]; then
+            print -P 'filter%{\e[1;30m%}:%{\e[0m%} '
+        else
+            print -P 'filter: '
+        fi
+        echoti rc
+    }
 }
 
 filter-select "$@"
