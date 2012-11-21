@@ -119,9 +119,10 @@ function filter-select() {
     local -a orig_region_highlight words
     orig_region_highlight=("${region_highlight[@]}")
 
-    local key cand lines selected cand_disp buffer_pre_zle last_buffer=''
+    local cand lines selected cand_disp buffer_pre_zle last_buffer=''
     local opt pattern msg unused title='' exit_pattern nl=$'\n'
     local selected_index mark_idx_disp hi start end spec
+    local key bounds numeric
 
     local -a displays matched_desc_keys match mbegin mend outs exit_wigdets
     local -a init_region_highlight marked_lines
@@ -221,6 +222,7 @@ function filter-select() {
 
     key=''
     bounds=''
+    numeric=''
 
     # clear edit buffer
     BUFFER=''
@@ -263,19 +265,19 @@ function filter-select() {
                 fi
                 ;;
             *down-line-or-history)
-                (( cursor_line++ ))
+                repeat ${numeric:-1} do (( cursor_line++ )) done
                 ;;
 
             *up-line-or-history)
-                (( cursor_line-- ))
+                repeat ${numeric:-1} do (( cursor_line-- )) done
                 ;;
 
             *forward-word)
-                (( cursor_line += bottom_lines ))
+                repeat ${numeric:-1} do (( cursor_line += bottom_lines )) done
                 ;;
 
             *backward-word)
-                (( cursor_line -= bottom_lines ))
+                repeat ${numeric:-1} do (( cursor_line -= bottom_lines )) done
                 ;;
 
             beginning-of-history)
@@ -444,19 +446,10 @@ function filter-select() {
 
         fi
 
-        _filter-select-read-keys
+        _filter-select-read-keys "filterselect" key bounds numeric
 
         if [[ $? != 0 ]]; then
-            # maybe ^C
-            key=''
-            bounds=''
             break
-        else
-            key="${reply}"
-            # TODO: key sequence
-            outs=("${(z)$( bindkey -M filterselect -- "${key}" )}")
-            # XXX: will $outs contains more than two values?
-            bounds="${outs[2]}"
         fi
     done
 
@@ -667,39 +660,59 @@ function _filter-select-init-keybind() {
 
         bindkey -M filterselect '^[>' end-of-history
         bindkey -M filterselect '^[[4~' end-of-history
+
+        bindkey -M filterselect '^[0' digit-argument
+        bindkey -M filterselect '^[1' digit-argument
+        bindkey -M filterselect '^[2' digit-argument
+        bindkey -M filterselect '^[3' digit-argument
+        bindkey -M filterselect '^[4' digit-argument
+        bindkey -M filterselect '^[5' digit-argument
+        bindkey -M filterselect '^[6' digit-argument
+        bindkey -M filterselect '^[7' digit-argument
+        bindkey -M filterselect '^[8' digit-argument
+        bindkey -M filterselect '^[9' digit-argument
+
+        bindkey -R -M filterselect "!"-"~" self-insert
     fi
 }
 
 function _filter-select-read-keys() {
-    local key key2 key3 key4
-    integer ret
+    : ${(P)4::=} # reset $numeric
+    _filter-select-read-keys-aux "$@"
+    return $?
+}
 
-    read -k key
-    ret=$?
-    reply="${key}"
-    if [[ '#key' -eq '#\\e' ]]; then
-        # M-...
-        read -t $(( KEYTIMEOUT / 1000 )) -k key2
-        if [[ "${key2}" == '[' ]]; then
-            # cursor keys
-            read -k key3
-            ret=$?
-            if [[ "${key3}" == [0-9] ]]; then
-                # Home, End, PgUp, PgDn ...
-                read -k key4
-                ret=$?
-                reply="${key}${key2}${key3}${key4}"
-            else
-                reply="${key}${key2}${key3}"
-            fi
-        else
-            reply="${key}${key2}"
-        fi
+function _filter-select-read-keys-aux() {
+    # TODO: *-arguments' handling in general
+    local keymap="$1"
+    local keyplace="$2"
+    local boundsplace="$3"
+    local numericplace="$4"
+
+    zle read-command -K "${keymap}"
+    if [[ $? != 0 ]]; then
+        # maybe ^C
+        : ${(P)keyplace::=}
+        : ${(P)boundsplace::=}
+        : ${(P)numericplace::=}
+        return -1
     else
-        reply="${key}"
+        : ${(P)keyplace::=${KEYS}}
+        : ${(P)boundsplace::=${REPLY}}
+        if _filter-select-digit-argument-p "${REPLY}"; then
+            : ${(P)numericplace::=${(P)numericplace}${KEYS[-1]}}
+            "$0" "$@"
+            return $?
+        fi
+        return 0
     fi
+}
 
-    return $ret
+function _filter-select-digit-argument-p() {
+    [[ "$1" == digit-argument ]] && return 0
+    [[ "$1" == vi-digit-or-beginning-of-line ]] && \
+        [[ -z "$BUFFER" ]] && return 0
+    return -1
 }
 
 filter-select "$@"
