@@ -23,7 +23,8 @@
 # usage:
 #   filter-select [-t title] [-A assoc-array-name]
 #                 [-d array-of-description] [-D assoc-array-of-descrption]
-#                 [-n] [-r] [-m] [-e exit-zle-widget-name]... [--] [arg]...
+#                 [-n] [-r] [-m] [-e exit-zle-widget-name]
+#                 [-p preselect-pattern]... [--] [arg]...
 #   filter-select -i
 #
 #     -t title
@@ -54,6 +55,9 @@
 #     -e exit-zle-widget-name
 #       if keys bound to `exit-zle-widget-name` is pressed,
 #       filter-select exits and set it's name to $reply[1].
+#
+#     -p preselect-pattern
+#       initially selected candidate specified by a pattern.
 #
 #     args
 #       selection candidates.
@@ -120,7 +124,7 @@ function filter-select() {
     orig_region_highlight=("${region_highlight[@]}")
 
     local key cand lines selected cand_disp buffer_pre_zle last_buffer=''
-    local opt pattern msg unused title='' exit_pattern nl=$'\n'
+    local opt pattern msg unused title='' exit_pattern nl=$'\n' preselect=''
     local selected_index mark_idx_disp hi start end spec
 
     local -a displays matched_desc_keys match mbegin mend outs exit_wigdets
@@ -146,7 +150,7 @@ function filter-select() {
     descriptions=()
     exit_wigdets=(accept-line accept-search send-break)
 
-    while getopts 't:A:d:D:nrme:i' opt; do
+    while getopts 't:A:d:D:nrme:p:i' opt; do
         case "${opt}" in
             t)
                 title="${OPTARG}"
@@ -180,6 +184,9 @@ function filter-select() {
                 ;;
             e)
                 exit_wigdets+="${OPTARG}"
+                ;;
+            p)
+                preselect="${OPTARG}"
                 ;;
             i)
                 # do nothing. only keybinds are initialized
@@ -246,6 +253,13 @@ function filter-select() {
     zle -Rc
 
     _filter-select-reset
+
+    if [[ ! -z "${preselect}" ]]; then
+        local k="${(k)descriptions[(r)${~preselect}]}"
+        if [[ ! -z "$k" ]]; then
+            (( cursor_line = $k ))
+        fi
+    fi
 
     exit_pattern="(${(j:|:)exit_wigdets})"
 
