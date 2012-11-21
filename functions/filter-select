@@ -88,7 +88,7 @@
 #
 # key binds in filterselect-vicmd which differs to the `vicmd`:
 #   i, a, /, ?:         select `filterselect` keymap
-#   ^G:                 send-break (retern 0)
+#   ^G:                 send-break (return 0)
 #
 # available zstyles:
 #   ':filter-select:highlight' selected

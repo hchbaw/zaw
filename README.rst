@@ -96,6 +96,12 @@ you can use these key binds::
   ^[V, page down key: backward-word (page up)
   ^[<, home key:      beginning-of-history (select first item)
   ^[>, end key:       end-of-history (select last item)
+  ^[^[:               select `filterselect-vicmd` keymap (see below)
+
+key binds in ``filterselect-vicmd`` which differs to the `vicmd`::
+
+  i, a, /, ?:         select `filterselect` keymap
+  ^G:                 send-break (return 0)
 
 and these zstyles to customize styles::
 
@@ -105,6 +111,7 @@ and these zstyles to customize styles::
   ':filter-select' max-lines
   ':filter-select' case-insensitive
   ':filter-select' extended-search
+  ':filter-select' keymap
 
   example:
     zstyle ':filter-select:highlight' matched fg=yellow,standout
@@ -112,6 +119,8 @@ and these zstyles to customize styles::
     zstyle ':filter-select' max-lines -10 # use $LINES - 10 for filter-select
     zstyle ':filter-select' case-insensitive yes # enable case-insensitive search
     zstyle ':filter-select' extended-search yes # see below
+    zstyle ':filter-select' keymap filterselect-vicmd
+    # initially select `filterselect-vicmd` keymap (default `filterselect`)
 
   extended-search:
       If this style set to be true value, the searching bahavior will be
