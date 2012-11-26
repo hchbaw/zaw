@@ -719,7 +719,11 @@ function _filter-select-init-keybind() {
 }
 
 function _filter-select-read-keys() {
-    : ${(P)4::=} # reset $numeric
+    # reset
+    : ${(P)2::=}
+    : ${(P)3::=}
+    : ${(P)4::=}
+
     _filter-select-read-keys-aux "$@"
     return $?
 }
@@ -739,14 +743,51 @@ function _filter-select-read-keys-aux() {
         : ${(P)numericplace::=}
         return -1
     else
-        : ${(P)keyplace::=${KEYS}}
-        : ${(P)boundsplace::=${REPLY}}
+        if [[ "${REPLY}" == undefined-key ]] && [[ $KEYS > $'\127' ]] ; then
+            # guess multibyte key sequences
+            if _filter-select-read-keys-aux-1 0 $KEYS ${keyplace}; then
+                : ${(P)boundsplace::=self-insert}
+            else
+                : ${(P)boundsplace::=send-break}
+            fi
+        else
+            : ${(P)keyplace::=${KEYS}}
+            : ${(P)boundsplace::=${REPLY}}
+        fi
+
         if _filter-select-digit-argument-p "${REPLY}"; then
             : ${(P)numericplace::=${(P)numericplace}${KEYS[-1]}}
             "$0" "$@"
             return $?
         fi
+
+        # FIXME: operotors will not work if CURSOR!=0
+        if [[ "$keymap" == filterselect-vicmd ]] && (( CURSOR != 0 )); then
+              case "${(P)boundsplace}" in
+                  vi-change|vi-delete)
+                      : ${(P)boundsplace::=vi-change-whole-line}
+                      ;;
+                  vi-yank)
+                      : ${(P)boundsplace::=vi-yank-whole-line}
+                      ;;
+              esac
+        fi
+
         return 0
+    fi
+}
+
+function _filter-select-read-keys-aux-1() {
+    local i="$1"
+    local acc="$2"
+    local keyplace="$3"
+    if (( i != 0 )) && (( $#acc == 1 )) ;then
+        : ${(P)keyplace::=$acc}
+        return 0
+    else
+        zle read-command -K filterselect
+        "$0" $(( i + 1)) "$acc""$KEYS" "$keyplace"
+        return $?
     fi
 }
 
