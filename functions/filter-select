@@ -703,6 +703,7 @@ function _filter-select-init-keybind() {
         bindkey -M filterselect '^[9' digit-argument
 
         bindkey -R -M filterselect "!"-"~" self-insert
+        bindkey -M filterselect ' ' self-insert
 
         bindkey -M filterselect '^[^[' filterselect-vicmd-mode
 
