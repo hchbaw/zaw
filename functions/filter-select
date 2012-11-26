@@ -98,6 +98,8 @@
 #   ':filter-select' case-insensitive
 #   ':filter-select' extended-search
 #   ':filter-select' keymap
+#   ':filter-select:filterselect' ps
+#   ':filter-select:filterselect-vicmd' ps
 #
 #   example:
 #     zstyle ':filter-select:highlight' matched fg=yellow,standout
@@ -106,6 +108,8 @@
 #     zstyle ':filter-select' case-insensitive yes # enable case-insensitive search
 #     zstyle ':filter-select' extended-search yes # enable extended search regardless of the case-insensitive style
 #     zstyle ':filter-select' keymap filterselect-vicmd # initially select `filterselect-vicmd` keymap
+#     zstyle ':filter-select:filterselect' ps '%{\e[01;04;37m%}filter:%{\e[0m%} '
+#     zstyle ':filter-select:filterselect-vicmd' ps 'filter: '
 #
 # extended-search:
 #     If this style set to be true value, the searching bahavior will be
@@ -117,6 +121,16 @@
 #     so-called smartcase searching
 #
 #     If you want to search these metacharacters, please doubly escape them.
+#
+# ps:
+#     zstyle ':filter-select:filterselect' ps
+#     zstyle ':filter-select:filterselect-vicmd' ps
+#
+#     Customizable prompt string for filterselect and filterselect-vicmd keymap.
+#     default: 'filter: ' and 'filter%{\e[1;30m%}:%{\e[0m%} ' respectively.
+#     Note that the prompt will be filled by some ansi escape sequences,
+#     it may or may not work correctly.
+#
 
 function filter-select() {
     emulate -L zsh
@@ -152,6 +166,11 @@ function filter-select() {
     integer max_lines
     zstyle -s ':filter-select' max-lines max_lines || max_lines=0
     zstyle -s ':filter-select' keymap keymap || keymap=filterselect
+    local ps ps_vicmd ps_alternate
+    zstyle -s ':filter-select:filterselect' ps ps || ps='filter: '
+    zstyle -s ':filter-select:filterselect-vicmd' ps ps_vicmd || ps_vicmd='filter%{\e[1;30m%}:%{\e[0m%} '
+    # alternate prompt string stripped some ansi escape sequences
+    ps_alternate="${${"$(print -P $ps)"}//$'\e['(([[:digit:]]##)#(;[[:digit:]]##)#)#[mK]/}"
 
     _filter-select-init-keybind
 
@@ -257,7 +276,8 @@ function filter-select() {
     done
 
     # prompt for filter-select
-    PREDISPLAY+="filter: "
+    # will be overridden with _filter-select-mode-update
+    PREDISPLAY+="$ps_alternate"
 
     # clear strings displayed below the command line
     zle -Rc
@@ -266,7 +286,7 @@ function filter-select() {
 
     exit_pattern="(${(j:|:)exit_wigdets})"
 
-    _filter-select-mode-update "$keymap"
+    _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
 
     while [[ "${bounds}" != ${~exit_pattern} ]]; do
         case "${bounds}" in
@@ -316,18 +336,22 @@ function filter-select() {
 
             filterselect-vicmd-mode)
                 keymap="filterselect-vicmd"
-                _filter-select-mode-update "$keymap"
+                _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
                 ;;
 
             filterselect-mode)
                 keymap="filterselect"
-                _filter-select-mode-update "$keymap"
+                _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
                 ;;
 
             '')
                 # empty, initial state
                 ;;
 
+            vi-change|vi-add-eol|vi-insert-bol)
+                keymap="filterselect"
+                _filter-select-mode-update "$keymap" "$prompt" "$prompt_vicmd"
+                ;&
             *)
                 buffer_pre_zle="${BUFFER}"
 
@@ -799,13 +823,17 @@ function _filter-select-digit-argument-p() {
 }
 
 function _filter-select-mode-update() {
-    zmodload zsh/terminfo 2>/dev/null && {
+    local keymap="$1"
+    local ps="$2"
+    local ps_vicmd="$3"
+    zmodload zsh/terminfo 2>/dev/null && \
+    (( $+terminfo[hpa] )) && (( $+terminfo[sc] )) && (( $+terminfo[rc] )) && {
         echoti sc
         echoti hpa 0
         if [[ "$1" == filterselect-vicmd ]]; then
-            print -P 'filter%{\e[1;30m%}:%{\e[0m%} '
+            print -P "$ps_vicmd"
         else
-            print -P 'filter: '
+            print -P "$ps"
         fi
         echoti rc
     }
