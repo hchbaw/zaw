@@ -98,8 +98,8 @@
 #   ':filter-select' case-insensitive
 #   ':filter-select' extended-search
 #   ':filter-select' keymap
-#   ':filter-select:filterselect' ps
-#   ':filter-select:filterselect-vicmd' ps
+#   ':filter-select:filterselect' prompt
+#   ':filter-select:filterselect-vicmd' prompt
 #
 #   example:
 #     zstyle ':filter-select:highlight' matched fg=yellow,standout
@@ -108,8 +108,8 @@
 #     zstyle ':filter-select' case-insensitive yes # enable case-insensitive search
 #     zstyle ':filter-select' extended-search yes # enable extended search regardless of the case-insensitive style
 #     zstyle ':filter-select' keymap filterselect-vicmd # initially select `filterselect-vicmd` keymap
-#     zstyle ':filter-select:filterselect' ps '%{\e[01;04;37m%}filter:%{\e[0m%} '
-#     zstyle ':filter-select:filterselect-vicmd' ps 'filter: '
+#     zstyle ':filter-select:filterselect' prompt '%{\e[01;04;37m%}filter:%{\e[0m%} '
+#     zstyle ':filter-select:filterselect-vicmd' prompt 'filter: '
 #
 # extended-search:
 #     If this style set to be true value, the searching bahavior will be
@@ -122,9 +122,9 @@
 #
 #     If you want to search these metacharacters, please doubly escape them.
 #
-# ps:
-#     zstyle ':filter-select:filterselect' ps
-#     zstyle ':filter-select:filterselect-vicmd' ps
+# prompt:
+#     zstyle ':filter-select:filterselect' prompt
+#     zstyle ':filter-select:filterselect-vicmd' prompt
 #
 #     Customizable prompt string for filterselect and filterselect-vicmd keymap.
 #     default: 'filter: ' and 'filter%{\e[1;30m%}:%{\e[0m%} ' respectively.
@@ -167,8 +167,8 @@ function filter-select() {
     zstyle -s ':filter-select' max-lines max_lines || max_lines=0
     zstyle -s ':filter-select' keymap keymap || keymap=filterselect
     local ps ps_vicmd ps_alternate
-    zstyle -s ':filter-select:filterselect' ps ps || ps='filter: '
-    zstyle -s ':filter-select:filterselect-vicmd' ps ps_vicmd || ps_vicmd='filter%{\e[1;30m%}:%{\e[0m%} '
+    zstyle -s ':filter-select:filterselect' prompt ps || ps='filter: '
+    zstyle -s ':filter-select:filterselect-vicmd' prompt ps_vicmd || ps_vicmd='filter%{\e[1;30m%}:%{\e[0m%} '
     # alternate prompt string stripped some ansi escape sequences
     ps_alternate="${${"$(print -P $ps)"}//$'\e['(([[:digit:]]##)#(;[[:digit:]]##)#)#[mK]/}"
 
