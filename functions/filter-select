@@ -770,7 +770,7 @@ function _filter-select-read-keys-aux() {
         : ${(P)numericplace::=}
         return -1
     else
-        if [[ "${REPLY}" == undefined-key ]] && [[ $KEYS > $'\127' ]] ; then
+        if [[ "${REPLY}" == undefined-key ]] && [[ $KEYS > $'\177' ]] ; then
             # guess multibyte key sequences
             if _filter-select-read-keys-aux-1 0 $KEYS ${keyplace}; then
                 : ${(P)boundsplace::=self-insert}
