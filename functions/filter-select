@@ -423,6 +423,11 @@ function filter-select() {
                 done
             fi
 
+            # XXX: If candidates does not fit the screen lines,
+            # end-of-history yields POSTDISPLAY shift up a line
+            # (Perhaps only multi-lined PROMPT matters)
+            zle -R
+
             POSTDISPLAY=$'\n'
             if [[ -n "${title}" ]]; then
                 POSTDISPLAY+="${title}"$'\n'
@@ -501,6 +506,7 @@ function filter-select() {
 }
 
 function _filter-select-update-lines() {
+    [[ -z "$lines" ]] || return # XXX: ignore any LINES changes
     # XXX: this function override ${lines}
     #      that define as local in filter-select
     #      also use ${title}
