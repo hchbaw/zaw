@@ -262,7 +262,10 @@ function filter-select() {
     BUFFER=''
 
     # display original edit buffer's contants as PREDISPLAY
-    PREDISPLAY="${orig_predisplay}${orig_lbuffer}${orig_rbuffer}${orig_postdisplay}${nl}"
+    PREDISPLAY="${orig_predisplay}${orig_lbuffer}${orig_rbuffer}${orig_postdisplay}"
+    if [[ $zsh_eval_context[1] != (cmdarg|toplevel) ]]; then
+        PREDISPLAY+="${nl}"
+    fi
 
     # re-calculate region_highlight
     init_region_highlight=()
