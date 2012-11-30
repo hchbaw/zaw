@@ -474,6 +474,7 @@ function filter-select() {
                 fi
                 last_buffer=
                 (( cursor_line = $tmpline ))
+                _filter-select-search-echo
                 ;;
 
             vi-repeat-search)
@@ -912,6 +913,8 @@ function _filter-select-init-keybind() {
 
         bindkey -M filterselect-search '^[^G' send-break
         bindkey -M filterselect-search '^G' send-break
+
+        bindkey -M filterselect '^L' clear-screen
 
         bindkey -M filterselect-search '^@' set-mark-command
 
