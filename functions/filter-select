@@ -147,10 +147,10 @@ function filter-select() {
     local cand lines selected cand_disp buffer_pre_zle last_buffer=''
     local opt pattern msg unused title='' exit_pattern nl=$'\n'
     local selected_index mark_idx_disp hi start end spec
-    local key bounds numeric keymap
+    local key bounds last_bounds numeric keymap
 
     local -a displays matched_desc_keys match mbegin mend outs exit_wigdets
-    local -a init_region_highlight marked_lines
+    local -a init_region_highlight add_region_highlight marked_lines
     local -A candidates descriptions matched_descs
 
     integer i bottom_lines cursor_line=1 display_head_line=1 cand_num disp_num ii num_desc
@@ -171,6 +171,10 @@ function filter-select() {
     zstyle -s ':filter-select:filterselect-vicmd' prompt ps_vicmd || ps_vicmd='filter%{\e[1;30m%}:%{\e[0m%} '
     # alternate prompt string stripped some ansi escape sequences
     ps_alternate="${${"$(print -P $ps)"}//$'\e['(([[:digit:]]##)#(;[[:digit:]]##)#)#[mK]/}"
+    local search_buffer='' search_postdisplay='' null=$'\0'
+    local hi_search='' hi_hlsearch=''
+    local -i search_cursor=0 search_line_offset=0 search_backward_p=0
+    zstyle -s ':filter-select:highlight' hlsearch hi_hlsearch || hi_hlsearch='fg=yellow,bg=black,standout,bold'
 
     _filter-select-init-keybind
 
@@ -256,6 +260,7 @@ function filter-select() {
 
     key=''
     bounds=''
+    last_bounds=''
     numeric=''
 
     # clear edit buffer
@@ -269,6 +274,7 @@ function filter-select() {
 
     # re-calculate region_highlight
     init_region_highlight=()
+    add_region_highlight=()
     for hi in "${(@)orig_region_highlight}"; do
         if [[ "${hi}" == P* ]]; then
             init_region_highlight+="${hi}"
@@ -291,7 +297,87 @@ function filter-select() {
 
     _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
 
+    local -i searchingp=0
     while [[ "${bounds}" != ${~exit_pattern} ]]; do
+        if (( searchingp != 0 )) || [[ "$keymap" == filterselect-search ]]; then
+            (( searchingp = 0 ))
+            case "${bounds}" in
+                filterselect-search-accept-search|filterselect-search-cancel-search)
+                    keymap="filterselect-vicmd"
+                    _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
+                    ;;
+                self-insert|undefined-key)
+                    if [[ "$last_bounds" != (self-insert|undefined-key) ]]; then
+                        search_buffer="$key"
+                        (( search_cursor = $#search_buffer ))
+                    else
+                        search_buffer="${search_buffer[1,((search_cursor + 1))]}${key}${search_buffer[((search_cursor + 2)),-1]}"
+                        (( search_cursor++ ))
+                    fi
+                    ;;
+                *)
+                    () {
+                        local b="$BUFFER"
+                        local -i c; (( c = CURSOR ))
+                        {
+                            BUFFER="$search_buffer"
+                            (( CURSOR = search_cursor ))
+                            zle "${bounds}"
+                            search_buffer="$BUFFER"
+                            (( search_cursor = CURSOR ))
+                        } always {
+                            BUFFER="$b"
+                            (( CURSOR = c ))
+                        }
+                    }
+                    ;;
+            esac
+            () {
+                _filter-select-search-echo "${search_buffer}"
+                [[ -n "${search_buffer}" ]] || {
+                    add_region_highlight=()
+                    return
+                }
+                if [[ -z "${title}" ]]; then
+                    search_postdisplay="$POSTDISPLAY"
+                else
+                    search_postdisplay="${POSTDISPLAY/(#s)$nl${title}/$nl${title//?/$null}}"
+                    (( search_line_offset = -1 ))
+                fi
+                local -a line_rh
+                line_rh=( ${${(0)${(S)search_postdisplay//*(#b)(${~search_buffer})/${#${(ps:\n:)search_postdisplay[1,mbegin[1]]}} P$(( $#PREDISPLAY - 1 + mbegin[1] + $#BUFFER )) $(( $#PREDISPLAY - 1 + mend[1] + 1 + $#BUFFER )) ${hi_hlsearch}${null}}}:#*$nl*} )
+                add_region_highlight=(${line_rh##[[:digit:]]## })
+
+                local -a param
+                if (( search_backward_p == 0 )); then
+                    param=('>=' 0 $#line_rh '++' '<' 1)
+                else
+                    param=('<=' $#line_rh 1 '--' '>' $#line_rh)
+                fi
+                () {
+                    local cmp="$1"
+                    local -i i=$2 to=$3 n=0 wrapped=$6
+                    local succ="$4" till="$5"
+                    if [[ "$bounds" == vi-repeat-search ]]; then
+                        cmp="${cmp[1,-2]}"
+                    fi
+                    while :; do
+                        while (( i$succ $till to )); do
+                            (( n = ${${line_rh[i]}%% *}+search_line_offset ))
+                            if (( n $cmp cursor_line )); then
+                                (( cursor_line = n ))
+                                break 2
+                            fi
+                        done
+                        (( cursor_line = \
+                          ${${line_rh[wrapped]}%% *}+search_line_offset ))
+                        break
+                    done
+                } $param[@]
+            }
+            last_bounds="$bounds"
+            bounds='' # fall through
+        fi
         case "${bounds}" in
             set-mark-command)
                 if (( markable )); then
@@ -345,10 +431,33 @@ function filter-select() {
             filterselect-mode)
                 keymap="filterselect"
                 _filter-select-mode-update "$keymap" "$ps" "$ps_vicmd"
+                add_region_highlight=()
+                search_buffer=''
+                search_cursor=0
+                _filter-select-search-echo
+                ;;
+
+            filterselect-search)
+                keymap="filterselect-search"
+                if [[ $key == '/' ]]; then
+                    (( search_backward_p = 0 ))
+                else
+                    (( search_backward_p = 1 ))
+                fi
+                _filter-select-search-echo ""
                 ;;
 
             '')
                 # empty, initial state
+                ;;
+
+            vi-repeat-search)
+                (( searchingp = 1 ))
+                ;;
+
+            vi-history-seach-forward)
+                (( searchingp = 1 ))
+                (( search_backward_p = 1 ))
                 ;;
 
             vi-change|vi-add-eol|vi-insert-bol)
@@ -359,11 +468,13 @@ function filter-select() {
                 buffer_pre_zle="${BUFFER}"
 
                 zle "${bounds}"
+                last_bounds="$bounds"
 
                 if [[ "${BUFFER}" != "${buffer_pre_zle}" ]]; then
                     _filter-select-reset
                 fi
         esac
+        [[ -z "$bounds" ]] || last_bounds=$bounds
 
         if (( cursor_line < 1 )); then
             (( display_head_line -= 1 - cursor_line ))
@@ -480,6 +591,7 @@ function filter-select() {
 
                     (( offset += ${#desc_disp} + 1 )) # +1 -> \n
                 done
+                region_highlight+=("${(@)add_region_highlight}")
             fi
 
             POSTDISPLAY=$'\n'
@@ -503,10 +615,12 @@ function filter-select() {
 
         fi
 
-        _filter-select-read-keys "${keymap}" key bounds numeric
+        if (( searchingp == 0 )); then
+            _filter-select-read-keys "${keymap}" key bounds numeric
 
-        if [[ $? != 0 ]]; then
-            break
+            if (( $? != 0 )); then
+                break
+            fi
         fi
     done
 
@@ -738,10 +852,39 @@ function _filter-select-init-keybind() {
 
         bindkey -M filterselect-vicmd 'i' filterselect-mode
         bindkey -M filterselect-vicmd 'a' filterselect-mode
-        bindkey -M filterselect-vicmd '/' filterselect-mode
-        bindkey -M filterselect-vicmd '?' filterselect-mode
         bindkey -M filterselect-vicmd '^[^G' send-break
         bindkey -M filterselect-vicmd '^G' send-break
+
+        bindkey -M filterselect-vicmd '/' filterselect-search
+        bindkey -M filterselect-vicmd '?' filterselect-search
+
+        bindkey -N filterselect-search
+        bindkey -M filterselect-search '^J' filterselect-search-accept-search
+        bindkey -M filterselect-search '^M' filterselect-search-accept-search
+        bindkey -M filterselect-search '^[^J' filterselect-search-accept-search
+        bindkey -M filterselect-search '^[^M' filterselect-search-accept-search
+        bindkey -M filterselect-search '^[' filterselect-search-cancel-search
+
+        bindkey -M filterselect-search '^[^G' send-break
+        bindkey -M filterselect-search '^G' send-break
+
+        bindkey -M filterselect-search '^@' set-mark-command
+
+        bindkey -M filterselect-search '^H' backward-delete-char
+        bindkey -M filterselect-search '^?' backward-delete-char
+
+        bindkey -M filterselect-search '^F' forward-char
+        bindkey -M filterselect-search '^[[C' forward-char
+
+        bindkey -M filterselect-search '^B' backward-char
+        bindkey -M filterselect-search '^[[D' backward-char
+
+        bindkey -M filterselect-search '^A' beginning-of-line
+        bindkey -M filterselect-search '^E' end-of-line
+
+        bindkey -M filterselect-search '^W' backward-kill-word
+        bindkey -M filterselect-search '^K' kill-line
+        bindkey -M filterselect-search '^U' kill-whole-line
     fi
 }
 
@@ -840,6 +983,26 @@ function _filter-select-mode-update() {
         fi
         echoti rc
     }
+}
+
+function _filter-select-search-echo() {
+    # XXX: refers lots of variables in the caller function.
+    echoti sc
+    echoti cud $(( bottom_lines + 1 ))
+    [[ -z "$title" ]] || {
+      echoti cud1
+    }
+    echoti hpa ${#:- [${desc_num}/${desc_num}]}
+    echoti el
+    (($#@)) && {
+        if (( search_backward_p == 0 )); then
+            echo -n '/'
+        else
+            echo -n '?'
+        fi
+        echo -n "${1}"
+    }
+    echoti rc
 }
 
 filter-select "$@"
